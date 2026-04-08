@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+.env
+venv/
+.venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# PostgreSQL
+*.db
+*.sqlite3
+
+# Alembic
+alembic/__pycache__/
+
+# Logs
+*.log
+
+# Secrets
+config.py
+secrets.py
