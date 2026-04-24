@@ -1,0 +1,23 @@
+# Вставить содержимое (YAML)
+# Сохранить (Ctrl+O, Enter, Ctrl+X)
+version: '3.8'          # Версия формата Docker Compose
+
+services:               # Список сервисов (контейнеров)
+  
+  db:                   # Сервис базы данных
+    image: postgres:15  # Образ PostgreSQL
+    environment:        # Переменные окружения
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123
+      POSTGRES_DB: blog_db
+    ports:
+      - "5432:5432"     # Проброс порта (хост:контейнер)
+
+  app:                  # Сервис приложения
+    build: .            # Собирать из Dockerfile в текущей папке
+    ports:
+      - "8000:8000"
+    depends_on:         # Зависит от db (запустится после db)
+      - db
+    environment:
+      DATABASE_URL: postgresql://postgres:123@db:5432/blog_db
