@@ -3,15 +3,15 @@ from fastapi.params import Query
 from sqlalchemy.orm import Session
 from models.database import SessionLocal,engine
 from models import models
-from auth import hash_password, verify_password, create_access_token, get_current_user
+from auth import oauth2_scheme,hash_password, verify_password, create_access_token,SECRET_KEY,ALGORITHM,JWTError
 from sqlalchemy import or_
 from schemas.User import UserCreate,UserResponse
 from schemas.Post import PostCreate, PostResponse,PostUpdate
 from schemas.Comment import CommentCreate,CommentResponse,CommentUpdate
 from typing import List
 from schemas.tag import TagCreate,TagResponse,TagUpdate
-
-models.Base.metadata.create_all(bind=engine)
+from jose import jwt
+from fastapi import status
 
 app=FastAPI()
 
@@ -21,6 +21,26 @@ def get_db():
         yield db
     finally:
         db.close()
+
+def get_current_user(token:str=Depends(oauth2_scheme),db:Session=Depends(get_db)):
+    credentials_exception=HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Could not validate credentials',
+            headers={'WWW-Authenticate':'Bearer'},
+        )
+    try:
+        payload=jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
+        username:str=payload.get('sub')
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    user = db.query(models.User).filter(models.User.username==username).first()
+    if user is None:
+        raise credentials_exception
+    return user
+
 @app.post('/users',response_model=UserResponse)
 def create_users(user:UserCreate,db:Session=Depends(get_db)):
     existing=db.query(models.User).filter(
@@ -272,3 +292,10 @@ def get_posts_by_tag(tag_name:str,db:Session=Depends(get_db)):
         raise HTTPException(status_code=404,detail='Tag not found')
 
     return tag.posts
+
+
+if __name__ == "__main__":
+    import uvicorn
+    models.Base.metadata.create_all(bind=engine)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
