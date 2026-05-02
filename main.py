@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends,HTTPException,Form
 from fastapi.params import Query
 from sqlalchemy.orm import Session
-from models.database import SessionLocal,engine
+from models.database import SessionLocal,engine,redis_client
 from models import models
 from auth import oauth2_scheme,hash_password, verify_password, create_access_token,SECRET_KEY,ALGORITHM,JWTError
 from sqlalchemy import or_
@@ -12,6 +12,7 @@ from typing import List
 from schemas.tag import TagCreate,TagResponse,TagUpdate
 from jose import jwt
 from fastapi import status
+import json
 
 app=FastAPI()
 
@@ -99,16 +100,29 @@ def create_post(post:PostCreate,db:Session=Depends(get_db),current_user:models.U
 
 @app.get('/posts',response_model=List[PostResponse])
 def read_posts(db:Session=Depends(get_db),skip:int = Query(0,ge=0,description='Сколько постов пропустить'),limit:int=Query(10,ge=1,le=100,description='Сколько вернуть')):
-    query=db.query(models.Post)
-    query=query.order_by(models.Post.created_at.desc())
-    return query.offset(skip).limit(limit).all()
+    cache_key=f'posts:{skip}:{limit}'
+
+    cached=redis_client.get(cache_key)
+    if cached:
+        return json.loads(cached)
+
+    query=db.query(models.Post).order_by(models.Post.created_at.desc())
+    posts=query.offset(skip).limit(limit).all()
+    redis_client.setex(cache_key,60,json.dumps([p.__dict__ for p in posts],default=str))
+    return posts
 
 @app.get('/posts/{post_id}',response_model=PostResponse)
 def read_post(post_id:int,db:Session=Depends(get_db)):
     db_post=db.query(models.Post).filter(models.Post.id==post_id).first()
     if not db_post:
         raise HTTPException(status_code=404,detail='Post not found')
+    redis_client.incr(f'post:{post_id}:views')
     return db_post
+
+@app.get('/posts/{post_id}/views')
+def get_views(post_id:int):
+    views=redis_client.get(f'post:{post_id}:views')
+    return {'post_id':post_id,'views':int(views) if views else 0}
 @app.patch('/posts/{post_id}',response_model=PostResponse)
 def update_post(post_id:int,post_update:PostUpdate,db:Session=Depends(get_db),current_user:models.User=Depends(get_current_user)):
     db_post=db.query(models.Post).filter(models.Post.id==post_id).first()
