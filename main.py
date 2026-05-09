@@ -308,8 +308,3 @@ def get_posts_by_tag(tag_name:str,db:Session=Depends(get_db)):
     return tag.posts
 
 
-if __name__ == "__main__":
-    import uvicorn
-    models.Base.metadata.create_all(bind=engine)
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
