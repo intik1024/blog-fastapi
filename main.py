@@ -16,10 +16,10 @@ import json
 
 app=FastAPI()
 
-@app.get("/create-tables")
-def create_tables():
-    models.Base.metadata.create_all(bind=engine)
-    return {"message": "Tables created!"}
+# @app.get("/create-tables")
+# def create_tables():
+#     models.Base.metadata.create_all(bind=engine)
+#     return {"message": "Tables created!"}
 
 def get_db():
     db=SessionLocal()
