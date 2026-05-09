@@ -102,13 +102,15 @@ def create_post(post:PostCreate,db:Session=Depends(get_db),current_user:models.U
 def read_posts(db:Session=Depends(get_db),skip:int = Query(0,ge=0,description='Сколько постов пропустить'),limit:int=Query(10,ge=1,le=100,description='Сколько вернуть')):
     cache_key=f'posts:{skip}:{limit}'
 
-    cached=redis_client.get(cache_key)
-    if cached:
-        return json.loads(cached)
+    if redis_client:
+        cached=redis_client.get(cache_key)
+        if cached:
+            return json.loads(cached)
 
     query=db.query(models.Post).order_by(models.Post.created_at.desc())
     posts=query.offset(skip).limit(limit).all()
-    redis_client.setex(cache_key,60,json.dumps([p.__dict__ for p in posts],default=str))
+    if redis_client:
+        redis_client.setex(cache_key,60,json.dumps([p.__dict__ for p in posts],default=str))
     return posts
 
 @app.get('/posts/{post_id}',response_model=PostResponse)
@@ -116,13 +118,16 @@ def read_post(post_id:int,db:Session=Depends(get_db)):
     db_post=db.query(models.Post).filter(models.Post.id==post_id).first()
     if not db_post:
         raise HTTPException(status_code=404,detail='Post not found')
-    redis_client.incr(f'post:{post_id}:views')
+    if redis_client:
+        redis_client.incr(f'post:{post_id}:views')
     return db_post
 
 @app.get('/posts/{post_id}/views')
 def get_views(post_id:int):
-    views=redis_client.get(f'post:{post_id}:views')
-    return {'post_id':post_id,'views':int(views) if views else 0}
+    if redis_client:
+        views=redis_client.get(f'post:{post_id}:views')
+        return {'post_id':post_id,'views':int(views) if views else 0}
+    return {'post_id':post_id,'views':0}
 @app.patch('/posts/{post_id}',response_model=PostResponse)
 def update_post(post_id:int,post_update:PostUpdate,db:Session=Depends(get_db),current_user:models.User=Depends(get_current_user)):
     db_post=db.query(models.Post).filter(models.Post.id==post_id).first()
